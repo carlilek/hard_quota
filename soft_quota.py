@@ -25,7 +25,6 @@ import qumulo.lib.auth
 import qumulo.lib.opts
 import qumulo.lib.request
 import qumulo.rest
-qumulo.lib.opts.import_rest()
 
 KILOBYTE = 1024
 MEGABYTE = 1024 * KILOBYTE
