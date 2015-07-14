@@ -27,9 +27,9 @@ import qumulo.lib.request
 import qumulo.rest
 qumulo.lib.opts.import_rest()
 
-KILOBYTE = 1000
-MEGABYTE = 1000 * KILOBYTE
-GIGABYTE = 1000 * MEGABYTE
+KILOBYTE = 1024
+MEGABYTE = 1024 * KILOBYTE
+GIGABYTE = 1024 * MEGABYTE
 
 def login(host, user, passwd, port):
     '''Obtain credentials from the REST server'''
@@ -42,7 +42,7 @@ def login(host, user, passwd, port):
 
         # Provide username and password to retreive authentication tokens
         # used by the credentials object
-        login_results, _ = qumulo.rest.auth.login(
+        login_results, _ = qumulo.rest.auth.login(\
                 conninfo, None, user, passwd)
 
         # Create the credentials object which will be used for
@@ -56,6 +56,7 @@ def login(host, user, passwd, port):
     return (conninfo, creds)
 
 def send_mail(smtp_server, sender, recipient, subject, body):
+    ''' send_mail '''
     mmsg = MIMEText(body, 'html')
     mmsg['Subject'] = subject
     mmsg['From'] = sender
@@ -66,6 +67,7 @@ def send_mail(smtp_server, sender, recipient, subject, body):
     session.quit()
 
 def monitor_path(path, quota, conninfo, creds, smtp_server, sender, recipient):
+    ''' monitor_path '''
     node = qumulo.rest.fs.read_dir_aggregates(conninfo, creds, path)
     quota = int(quota) * GIGABYTE
     subject = "Quota exceeded"
