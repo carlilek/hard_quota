@@ -33,14 +33,14 @@ TERABYTE = 1024 * GIGABYTE
 
 ###############CHANGE THESE SETTINGS AND CREATE THESE FILES FOR YOUR ENVIRONMENT #####################################
 # Email settings
-smtp_server = '10.42.5.23'
-sender = 'nrs@janelia.hhmi.org'
-recipients = ['scicompsys@janelia.hhmi.org', 'saffordt@janelia.hhmi.org']
+smtp_server = 'smtp.example.com'
+sender = 'qumulo_cluster@example.com'
+recipients = ['recipient1@example.com', 'recipient2@example.com']
 
 # Location to write log file and header line for log file
-logfile = '/groups/scicomp/reports/nrs_usage/lab_usage.log'
-header = 'Lab,SpaceUsed'
-storagename = '[NRS]' # for email subject
+logfile = './group_usage.log'
+header = 'Group,SpaceUsed'
+storagename = '[QUMULO CLUSTER]' # for email subject
 
 # Import credentials
 # credentials.txt formatted as single line composed of <host fqdn> <username> <password> <portnumber (default 8000)>
