@@ -43,10 +43,10 @@ header = 'Group,SpaceUsed'
 storagename = '[QUMULO CLUSTER]' # for email subject
 
 # Import credentials
-# credentials.txt formatted as single line composed of <host fqdn> <username> <password> <portnumber (default 8000)>
-with open(os.path.join(sys.path[0], "credentials.txt"),"r") as file:
-    line = file.readline()
-    host, user, password, port = line.split() 
+host = os.environ.get('SQ_CLUSTER')
+port = 8000
+user = os.environ.get('SQ_USER') or 'admin'
+password = os.environ.get('SQ_PWD') or 'admin'
 
 # Import quota dictionary from quotas.txt file
 # quotas.txt formatted as one line per quota formatted as <short name> <path on Qumulo storage> <nfs mount path> <quota size in TB>
