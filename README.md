@@ -1,5 +1,5 @@
-# soft_quota
-soft_quota.py will run a check against a Qumulo cluster running Qumulo Core 1.2.9 or later. Requires python 2.7. 
+# hard_quota
+hard_quota.py will run a check against a Qumulo cluster running Qumulo Core 1.2.9 or later. Requires python 2.7. 
 The script will generate a csv file containing the quota name and the current usage and will email if the quota is exceeded.
 
 Credentials are defined with environment variables, as follows: 
