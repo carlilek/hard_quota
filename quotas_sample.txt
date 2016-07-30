@@ -1,3 +1,4 @@
+#Format is shortname /Qumulo/path /nfs/mount/path Quota_in_TB
 developers /filestore/departments/developers /mnt/departments/developers 30.0
 executives /filestore/departments/exexutives /mnt/departments/executives 40.0
 flylight /filestore/departments/flylight /mnt/departments/flylight 30.0
