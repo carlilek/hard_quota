@@ -26,7 +26,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import qumulo.lib.auth
 import qumulo.lib.opts
 import qumulo.lib.request
-import qumulo.rest
+import qumulo.rest.fs as fs
 
 # Size Definitions
 KILOBYTE = 1024
@@ -43,7 +43,7 @@ recipients = ['recipient1@example.com', 'recipient2@example.com']
 # Location to write log file and header line for log file
 logfile = './group_usage.log'
 header = 'Group,SpaceUsed'
-storagename = '[QUMULO CLUSTER]' # for email subject
+storagename = '[QUMULO CLUSTER]' # for email subject, change to match your cluster name
 
 # Import credentials
 host = os.environ.get('QUMULO_CLUSTER')
@@ -96,9 +96,9 @@ def send_mail(smtp_server, sender, recipients, subject, body):
 
 def build_mail(nfspath, quota, current_usage, smtp_server, sender, recipients):
     sane_current_usage = float(current_usage) / float(TERABYTE)
-    subject = storagename + "Quota exceeded"
+    subject = storagename + " Quota Notification"
     body = ""
-    body += "The usage on {} has exceeded the quota.<br>".format(nfspath)
+    body += "The usage on {} is greater than 90% of the quota. At 100%, writes will be disabled until some items are deleted.<br>".format(nfspath)
     body += "Current usage: %0.2f TB<br>" %sane_current_usage 
     body += "Quota: %0.2f TB<br>" %quota
     body += "<br>"
@@ -107,7 +107,7 @@ def build_mail(nfspath, quota, current_usage, smtp_server, sender, recipients):
 # Build email and check against quota for notification, return current usage for tracking
 def monitor_path(path, conninfo, creds):
     try:
-        node = qumulo.rest.fs.read_dir_aggregates(conninfo, creds, path)
+        node = fs.read_dir_aggregates(conninfo, creds, path)
     except Exception, excpt:
         print 'Error retrieving path: %s' % excpt
     else:
@@ -166,7 +166,7 @@ def lock_share(conninfo, creds, sourcepath, locked_acls_list):
     locked_aces=locked_acls_list[0]['acl']['aces']       
     fs.set_acl(conninfo, creds, path=sourcepath, control=locked_control, aces=locked_aces) 
 
-def unlock_share(conninfo, creds, sourcepath, kwotapath):
+def unlock_share(conninfo, creds, sourcepath, kwotafile):
     temp_file2 = tempfile.TemporaryFile(mode='a+b')
     fs.read_file(conninfo, creds, temp_file2, path=kwotafile)
     temp_file2.seek(0)
@@ -195,18 +195,18 @@ def main(argv):
             soft_threshold = int(quotaraw * 0.90)
             if current_usage < quotaraw:
                 try:
-                    kwotapath = os.join(sourcepath, '.kwota')
-                    fs.get_file_attr(conninfo, creds, kwotapath)
-                    unlock_share(conninfo, creds, sourcepath, kwotapath)
+                    kwotafile = os.path.join(path, '.kwota')
+                    fs.get_file_attr(conninfo, creds, kwotafile)
+                    unlock_share(conninfo, creds, path, kwotafile)
                 except:
                     pass
             if current_usage > soft_threshold:
                 build_mail(nfspath, quota, current_usage, smtp_server, sender, recipients)
             if current_usage > quotaraw:
-                orig_acls = fs.get_acl(conninfo, creds, sourcepath)
-                write_kwotafile(conninfo, creds, sourcepath, orig_acls)
-                lock_share(conninfo, creds, sourcepath, orig_acls)
-            build_csv(quotaname, current_usage, logfile, orig_acls)    
+                orig_acls = fs.get_acl(conninfo, creds, path)
+                write_kwotafile(conninfo, creds, path, orig_acls)
+                lock_share(conninfo, creds, path, orig_acls)
+            build_csv(quotaname, current_usage, logfile)    
 
 # Main
 if __name__ == '__main__':
