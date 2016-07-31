@@ -1,3 +1,2 @@
 change quotas.txt to include email addresses (maybe server?)
-add fields to output csv
 multiple email messages (for when quota is almost full, full, and access restored.)

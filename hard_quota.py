@@ -42,7 +42,7 @@ recipients = ['recipient1@example.com', 'recipient2@example.com']
 
 # Location to write log file and header line for log file
 logfile = './group_usage.log'
-header = 'Group,SpaceUsed'
+header = 'Group,SpaceUsed,QuotaSize,FileCount'
 storagename = '[QUMULO CLUSTER]' # for email subject, change to match your cluster name
 
 # Import credentials
@@ -112,11 +112,12 @@ def monitor_path(path, conninfo, creds):
         print 'Error retrieving path: %s' % excpt
     else:
         current_usage = int(node[0]['total_capacity'])
-        return current_usage
+        total_files = int(node[0]['total_files'])
+        return current_usage, total_files
 
-def build_csv(quotaname, current_usage, logfile):
-    with open(logfile, "a") as file:
-        file.write(quotaname + ',' + str(current_usage) + '\n')
+def build_csv(quotaname, current_usage, quotaraw, total_files, tempfile):
+    with open(tempfile, "a") as file:
+        file.write("{},{},{},{}\n".format(quotaname, str(current_usage), str(quotaraw), str(total_files)))
 
 def write_kwotafile(conninfo, creds, sourcepath, orig_acls):
     kwotafile = os.path.join(sourcepath,'.kwota')
@@ -189,7 +190,7 @@ def main(argv):
     # Get quotas and generate CSV
     for quotaname in quota_dict.keys():
         path, nfspath, quota = quota_dict[quotaname]
-        current_usage = monitor_path(path, conninfo, creds)
+        current_usage, total_files = monitor_path(path, conninfo, creds)
         if current_usage is not None:
             quotaraw = int(quota) * TERABYTE
             soft_threshold = int(quotaraw * 0.90)
@@ -206,7 +207,7 @@ def main(argv):
                 orig_acls = fs.get_acl(conninfo, creds, path)
                 write_kwotafile(conninfo, creds, path, orig_acls)
                 lock_share(conninfo, creds, path, orig_acls)
-            build_csv(quotaname, current_usage, logfile)    
+            build_csv(quotaname, current_usage, quotaraw, total_files, logfile)    
 
 # Main
 if __name__ == '__main__':
