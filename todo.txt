@@ -1,7 +1,1 @@
-JSON config file: 
-    replace quotas.txt and include email addresses
-    email server
-    sender address
-    cluster name
-    cluster url
 multiple email messages (for when quota is almost full, full, and access restored.)

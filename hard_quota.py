@@ -34,31 +34,59 @@ MEGABYTE = 1024 * KILOBYTE
 GIGABYTE = 1024 * MEGABYTE
 TERABYTE = 1024 * GIGABYTE
 
-###############CHANGE THESE SETTINGS AND CREATE THESE FILES FOR YOUR ENVIRONMENT #####################################
-# Email settings
-smtp_server = 'smtp.example.com'
-sender = 'qumulo_cluster@example.com'
-recipients = ['recipient1@example.com', 'recipient2@example.com']
-
-# Location to write log file and header line for log file
-logfile = './group_usage.log'
-header = 'Group,SpaceUsed,QuotaSize,FileCount'
-storagename = '[QUMULO CLUSTER]' # for email subject, change to match your cluster name
-
 # Import credentials
 host = os.environ.get('QUMULO_CLUSTER')
 port = 8000
 user = os.environ.get('QUMULO_USER')
 password = os.environ.get('QUMULO_PWD') or 'admin'
 
-# Import quota dictionary from quotas.txt file
-# quotas.txt formatted as one line per quota formatted as <short name> <path on Qumulo storage> <nfs mount path> <quota size in TB>
+# Import config.json
+configpath = "./config.json"
+with open (configpath, 'r') as j:
+    config = json.load(j)
+
+sender = str(config['email settings']['sender_address'])
+smtp_server = str(config['email settings']['server'])
+host = str(config['qcluster']['url'])
+storagename = str(config['qcluster']['name'])
+header = 'Group,SpaceUsed,QuotaSize,FileCount'
+
 quota_dict = {}
-with open(os.path.join(sys.path[0], "quotas.txt"),"r") as file:
-    for line in file:
-        quotaname, storage_path, nfs_path, size = line.split()
-        quota_dict[quotaname] = (storage_path, nfs_path, float(size))
-######################################################################################################################
+for quota in config['quotas']:
+    quotaname = str(quota)
+    storage_path = str(config['quotas'][quota]['qumulo_path'])
+    nfs_path = str(config['quotas'][quota]['nfs_path'])
+    size = config['quotas'][quota]['quota_size']
+    recipients = config['quotas'][quota]['mail_to']
+    quota_dict[quotaname] = (storage_path, nfs_path, size, recipients)
+
+logfile = str(config['output_log']['logfile'])
+
+################CHANGE THESE SETTINGS AND CREATE THESE FILES FOR YOUR ENVIRONMENT #####################################
+## Email settings
+#smtp_server = 'smtp.example.com'
+#sender = 'qumulo_cluster@example.com'
+#recipients = ['recipient1@example.com', 'recipient2@example.com']
+#
+## Location to write log file and header line for log file
+#logfile = './group_usage.log'
+#header = 'Group,SpaceUsed,QuotaSize,FileCount'
+#storagename = '[QUMULO CLUSTER]' # for email subject, change to match your cluster name
+#
+## Import credentials
+#host = os.environ.get('QUMULO_CLUSTER')
+#port = 8000
+#user = os.environ.get('QUMULO_USER')
+#password = os.environ.get('QUMULO_PWD') or 'admin'
+#
+## Import quota dictionary from quotas.txt file
+## quotas.txt formatted as one line per quota formatted as <short name> <path on Qumulo storage> <nfs mount path> <quota size in TB>
+#quota_dict = {}
+#with open(os.path.join(sys.path[0], "quotas.txt"),"r") as file:
+#    for line in file:
+#        quotaname, storage_path, nfs_path, size = line.split()
+#        quota_dict[quotaname] = (storage_path, nfs_path, float(size))
+#######################################################################################################################
 
 def login(host, user, passwd, port):
     '''Obtain credentials from the REST server'''
@@ -189,7 +217,7 @@ def main(argv):
 
     # Get quotas and generate CSV
     for quotaname in quota_dict.keys():
-        path, nfspath, quota = quota_dict[quotaname]
+        path, nfspath, quota, recipients = quota_dict[quotaname]
         current_usage, total_files = monitor_path(path, conninfo, creds)
         if current_usage is not None:
             quotaraw = int(quota) * TERABYTE
