@@ -10,5 +10,5 @@ $QUMULO_CLUSTER  #Cluster FQDN
 $QUMULO_USER     #Username with rights to use API  
 $QUMULO_PWD      #Password for that user  
   
-Quotas are defined in the quotas.txt file and are space delimited. A sample file is provided. Format is as follows:   
-quota_name /storage/system/path /nfs/mount/path quota_size_in_TB  
+Quotas, email address, smtp server, etc. are defined in the config.json file. A sample file is provided. Quotas should be specified in TB. 
+ 
