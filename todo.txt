@@ -1,1 +1,1 @@
-multiple email messages (for when quota is almost full, full, and access restored.)
+smtp credentials, port number

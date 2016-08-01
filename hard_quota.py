@@ -40,53 +40,31 @@ port = 8000
 user = os.environ.get('QUMULO_USER')
 password = os.environ.get('QUMULO_PWD') or 'admin'
 
-# Import config.json
-configpath = "./config.json"
-with open (configpath, 'r') as j:
-    config = json.load(j)
-
-sender = str(config['email settings']['sender_address'])
-smtp_server = str(config['email settings']['server'])
-host = str(config['qcluster']['url'])
-storagename = str(config['qcluster']['name'])
-header = 'Group,SpaceUsed,QuotaSize,FileCount'
-
-quota_dict = {}
-for quota in config['quotas']:
-    quotaname = str(quota)
-    storage_path = str(config['quotas'][quota]['qumulo_path'])
-    nfs_path = str(config['quotas'][quota]['nfs_path'])
-    size = config['quotas'][quota]['quota_size']
-    recipients = config['quotas'][quota]['mail_to']
-    quota_dict[quotaname] = (storage_path, nfs_path, size, recipients)
-
-logfile = str(config['output_log']['logfile'])
-
-################CHANGE THESE SETTINGS AND CREATE THESE FILES FOR YOUR ENVIRONMENT #####################################
-## Email settings
-#smtp_server = 'smtp.example.com'
-#sender = 'qumulo_cluster@example.com'
-#recipients = ['recipient1@example.com', 'recipient2@example.com']
-#
-## Location to write log file and header line for log file
-#logfile = './group_usage.log'
-#header = 'Group,SpaceUsed,QuotaSize,FileCount'
-#storagename = '[QUMULO CLUSTER]' # for email subject, change to match your cluster name
-#
-## Import credentials
-#host = os.environ.get('QUMULO_CLUSTER')
-#port = 8000
-#user = os.environ.get('QUMULO_USER')
-#password = os.environ.get('QUMULO_PWD') or 'admin'
-#
-## Import quota dictionary from quotas.txt file
-## quotas.txt formatted as one line per quota formatted as <short name> <path on Qumulo storage> <nfs mount path> <quota size in TB>
-#quota_dict = {}
-#with open(os.path.join(sys.path[0], "quotas.txt"),"r") as file:
-#    for line in file:
-#        quotaname, storage_path, nfs_path, size = line.split()
-#        quota_dict[quotaname] = (storage_path, nfs_path, float(size))
-#######################################################################################################################
+# Import config.json for environment specific settings
+try:
+    configpath = "./config.json"
+    with open (configpath, 'r') as j:
+        config = json.load(j)
+    
+    sender = str(config['email settings']['sender_address'])
+    smtp_server = str(config['email settings']['server'])
+    host = str(config['qcluster']['url'])
+    storagename = str(config['qcluster']['name'])
+    header = 'Group,SpaceUsed,QuotaSize,FileCount'
+    
+    quota_dict = {}
+    for quota in config['quotas']:
+        quotaname = str(quota)
+        storage_path = str(config['quotas'][quota]['qumulo_path'])
+        nfs_path = str(config['quotas'][quota]['nfs_path'])
+        size = config['quotas'][quota]['quota_size']
+        recipients = config['quotas'][quota]['mail_to']
+        quota_dict[quotaname] = (storage_path, nfs_path, size, recipients)
+    
+    logfile = str(config['output_log']['logfile'])
+except Exception, excpt:
+    print "Improperly formatted {} or missing file:".format(configpath, excpt)
+    sys.exit(1)
 
 def login(host, user, passwd, port):
     '''Obtain credentials from the REST server'''
@@ -122,11 +100,17 @@ def send_mail(smtp_server, sender, recipients, subject, body):
     session.sendmail(sender, recipients, mmsg.as_string())
     session.quit()
 
-def build_mail(nfspath, quota, current_usage, smtp_server, sender, recipients):
+def build_mail(nfspath, quota, current_usage, smtp_server, sender, recipients, bodytype):
+    if bodytype is 'warn':
+        bodytext = "The usage on {} is greater than 90% of the quota. At 100%, writes will be disabled until some items are deleted.<br>".format(nfspath)
+    elif bodytype is 'lock':
+        bodytext = "The usage on {} has exceeded the quota. Writes have been disabled until some items are deleted.<br>".format(nfspath)
+    elif bodytype is 'unlock':
+        bodytext = "The usage on {} is now below the quota. Writes have been re-enabled.<br>".format(nfspath)
     sane_current_usage = float(current_usage) / float(TERABYTE)
     subject = storagename + " Quota Notification"
     body = ""
-    body += "The usage on {} is greater than 90% of the quota. At 100%, writes will be disabled until some items are deleted.<br>".format(nfspath)
+    body += bodytext
     body += "Current usage: %0.2f TB<br>" %sane_current_usage 
     body += "Quota: %0.2f TB<br>" %quota
     body += "<br>"
@@ -199,9 +183,9 @@ def unlock_share(conninfo, creds, sourcepath, kwotafile):
     temp_file2 = tempfile.TemporaryFile(mode='a+b')
     fs.read_file(conninfo, creds, temp_file2, path=kwotafile)
     temp_file2.seek(0)
-    restore_acls=json.loads(str(temp_file2.read()))
-    restore_control=restore_acls[0]['acl']['control']
-    restore_aces=restore_acls[0]['acl']['aces']
+    restore_acls = json.loads(str(temp_file2.read()))
+    restore_control = restore_acls[0]['acl']['control']
+    restore_aces = restore_acls[0]['acl']['aces']
     fs.set_acl(conninfo, creds, path=sourcepath, control=restore_control, aces=restore_aces)
     temp_file2.close()
     fs.delete(conninfo, creds, kwotafile)
@@ -219,23 +203,39 @@ def main(argv):
     for quotaname in quota_dict.keys():
         path, nfspath, quota, recipients = quota_dict[quotaname]
         current_usage, total_files = monitor_path(path, conninfo, creds)
-        if current_usage is not None:
-            quotaraw = int(quota) * TERABYTE
-            soft_threshold = int(quotaraw * 0.90)
+        quotaraw = int(quota) * TERABYTE
+        build_csv(quotaname, current_usage, quotaraw, total_files, logfile)    
+        kwarn_file = os.path.join(path, '.kwarn')
+        kwotafile = os.path.join(path, '.kwota')
+        try:
+            fs.get_file_attr(conninfo, creds, kwotafile)
             if current_usage < quotaraw:
+                unlock_share(conninfo, creds, path, kwotafile)
+                bodytype = 'unlock'
+                build_mail(nfspath, quota, current_usage, smtp_server, sender, recipients, bodytype)
+            continue
+        except:
+            pass
+        if current_usage is not None:
+            soft_threshold = int(quotaraw * 0.90)
+            if current_usage > soft_threshold and current_usage < quotaraw:
                 try:
-                    kwotafile = os.path.join(path, '.kwota')
-                    fs.get_file_attr(conninfo, creds, kwotafile)
-                    unlock_share(conninfo, creds, path, kwotafile)
+                    fs.create_file(conninfo, creds, '.kwarn', dir_path=path)
+                    bodytype = 'warn'
+                    build_mail(nfspath, quota, current_usage, smtp_server, sender, recipients, bodytype)
                 except:
                     pass
-            if current_usage > soft_threshold:
-                build_mail(nfspath, quota, current_usage, smtp_server, sender, recipients)
-            if current_usage > quotaraw:
+            elif current_usage > quotaraw:
                 orig_acls = fs.get_acl(conninfo, creds, path)
                 write_kwotafile(conninfo, creds, path, orig_acls)
                 lock_share(conninfo, creds, path, orig_acls)
-            build_csv(quotaname, current_usage, quotaraw, total_files, logfile)    
+                bodytype = 'lock'
+                build_mail(nfspath, quota, current_usage, smtp_server, sender, recipients, bodytype)
+            elif current_usage < soft_threshold:
+                try:
+                    fs.delete(conninfo, creds, kwarn_file)
+                except:
+                    pass
 
 # Main
 if __name__ == '__main__':
